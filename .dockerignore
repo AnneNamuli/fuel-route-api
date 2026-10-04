@@ -7,9 +7,11 @@ __pycache__/
 build/
 dist/
 wheels/
-db.sqlite3
 staticfiles/
 .env
 Dockerfile
 docker-compose.yml
 .dockerignore
+data/
+.ruff_cache/
+.pytest_cache/

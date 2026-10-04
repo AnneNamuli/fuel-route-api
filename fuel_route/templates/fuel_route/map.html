@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fuel Route Planner</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    body { margin: 0; font: 14px system-ui, sans-serif; display: flex; height: 100vh; }
+    aside { width: 340px; padding: 16px; overflow-y: auto; box-sizing: border-box; border-right: 1px solid #ddd; }
+    #map { flex: 1; }
+    label { display: block; margin-top: 8px; font-weight: 600; }
+    input, select { width: 100%; padding: 6px; box-sizing: border-box; }
+    button { margin-top: 12px; padding: 8px 12px; width: 100%; }
+    .error { color: #b00020; }
+    .stop { border-top: 1px solid #eee; padding: 6px 0; }
+    @media (max-width: 700px) { body { flex-direction: column; } aside { width: 100%; height: 45vh; } }
+  </style>
+</head>
+<body>
+  <aside>
+    <h2>Fuel Route Planner</h2>
+    <label for="saved">Saved trips</label>
+    <select id="saved"><option value="">Choose a saved trip…</option></select>
+    <form id="form">
+      <label for="start">Start</label>
+      <input id="start" value="Chicago, IL" required>
+      <label for="finish">Finish</label>
+      <input id="finish" value="Denver, CO" required>
+      <button type="submit">Plan trip</button>
+    </form>
+    <div id="result"></div>
+  </aside>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([39.5, -98.35], 4);
+    // OpenStreetMap's tile servers block requests that don't say which site they come from, and
+    // Django's default Referrer-Policy (same-origin) strips that from cross-site requests, so send
+    // the origin explicitly for tiles.
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      referrerPolicy: 'strict-origin-when-cross-origin',
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    }).addTo(map);
+    let layer = null;
+    const result = document.getElementById('result');
+    const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+
+    const form = document.getElementById('form');
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      result.textContent = 'Planning…';
+      let response, data;
+      try {
+        response = await fetch(`/api/trips/?${new URLSearchParams({start: start.value, finish: finish.value})}`);
+        data = await response.json();
+      } catch (error) {
+        const reason = response ? `server error (HTTP ${response.status})` : 'network error';
+        result.innerHTML = `<p class="error">Could not plan the trip: ${reason}.</p>`;
+        return;
+      }
+      if (!response.ok) {
+        result.innerHTML = `<p class="error">${esc(data.detail || JSON.stringify(data))}</p>`;
+        return;
+      }
+      // Keep the URL shareable and the dropdown current.
+      history.replaceState(null, '', `?${new URLSearchParams({start: start.value, finish: finish.value})}`);
+      loadSavedTrips();
+      if (layer) layer.remove();
+      layer = L.geoJSON(data.map, {
+        style: {color: '#2563eb', weight: 4},
+        pointToLayer: (feature, latlng) => L.marker(latlng).bindPopup(
+          `<b>Stop ${feature.properties.stop}: ${esc(feature.properties.name)}</b><br>` +
+          `$${feature.properties.price_per_gallon}/gal · ${feature.properties.gallons} gal · $${feature.properties.cost}`
+        ),
+      }).addTo(map);
+      map.fitBounds(layer.getBounds(), {padding: [20, 20]});
+
+      result.innerHTML = `
+        <p><b>${data.distance_miles} mi</b> · ${data.duration_hours} h<br>
+        Fuel cost: <b>$${data.total_fuel_cost}</b> (${data.total_gallons} gal)</p>
+        ${data.fuel_stops.length ? '' : '<p>No fuel stop needed within the vehicle range.</p>'}
+        ${data.fuel_stops.map((s, i) => `
+          <div class="stop"><b>${i + 1}. ${esc(s.name)}</b><br>
+          ${esc(s.city)}, ${esc(s.state)} · mile ${s.miles_from_start}<br>
+          $${s.price_per_gallon}/gal · ${s.gallons} gal · $${s.cost}</div>`).join('')}`;
+    });
+
+    // Saved trips: picking one sets the query parameters and draws it (served from the cache).
+    const saved = document.getElementById('saved');
+    let savedTrips = [];
+    async function loadSavedTrips() {
+      try {
+        const response = await fetch('/api/trips/saved/');
+        if (!response.ok) return;
+        savedTrips = await response.json();
+      } catch (error) {
+        return;  // the dropdown is optional; planning still works
+      }
+      saved.innerHTML = '<option value="">Choose a saved trip…</option>' + savedTrips.map((r, i) =>
+        `<option value="${i}">${esc(r.start)} → ${esc(r.finish)} (${Math.round(r.distance_miles)} mi, $${r.total_fuel_cost})</option>`
+      ).join('');
+    }
+    saved.addEventListener('change', () => {
+      const trip = savedTrips[saved.value];
+      if (!trip) return;
+      start.value = trip.start;
+      finish.value = trip.finish;
+      form.requestSubmit();
+    });
+    loadSavedTrips();
+
+    // Opened from an API response's map_url: plan that trip straight away.
+    const params = new URLSearchParams(location.search);
+    if (params.get('start') && params.get('finish')) {
+      start.value = params.get('start');
+      finish.value = params.get('finish');
+      form.requestSubmit();
+    }
+  </script>
+</body>
+</html>

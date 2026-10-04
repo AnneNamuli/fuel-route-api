@@ -1,20 +1,52 @@
 [project]
 name = "fuel-route-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "API for planning fuel stops along a route using OPIS truck stop prices."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "django==6.1.1",
     "djangorestframework==3.18.1",
+    "drf-spectacular>=0.30.0",
     "gunicorn>=26.2.0",
+    "psycopg[binary]>=3.3.6",
     "python-dotenv>=1.2.4",
     "requests>=2.34.2",
+    "whitenoise>=6.12.0",
 ]
 
-[project.scripts]
-fuel-route-api = "fuel_route_api:main"
+[dependency-groups]
+dev = [
+    "mypy>=2.4.0",
+    "ruff>=0.16.10",
+]
 
-[build-system]
-requires = ["uv_build>=0.12.22,<0.13.0"]
-build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+# pycodestyle, pyflakes, isort, pep8-naming, pyupgrade, bugbear, simplify, comprehensions,
+# Django, return, misc, and pydocstyle (PEP 257).
+select = ["E", "W", "F", "I", "N", "UP", "B", "SIM", "C4", "DJ", "RET", "PIE", "D"]
+ignore = [
+    "D203",  # one blank line before class docstring (conflicts with D211)
+    "D213",  # multi-line summary on second line (conflicts with D212)
+    "D105",  # docstrings for magic methods
+    "D106",  # docstrings for nested Meta classes
+]
+
+[tool.ruff.lint.per-file-ignores]
+"manage.py" = ["D"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.mypy]
+# The app is fully annotated (tests and migrations aside); Django and DRF ship without type stubs.
+files = ["fuel_route", "config"]
+exclude = ["fuel_route/tests/", "fuel_route/migrations/"]
+ignore_missing_imports = true
+check_untyped_defs = true

@@ -11,5 +11,5 @@ wheels/
 
 # Local env / data
 .env
-db.sqlite3
 staticfiles/
+/data

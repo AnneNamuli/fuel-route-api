@@ -1,17 +1,54 @@
+x-app: &app
+  build: .
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    DJANGO_DEBUG: ${DJANGO_DEBUG:-False}
+    DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
+    POSTGRES_HOST: db
+    POSTGRES_PORT: 5432
+  volumes:
+    - ./data:/app/data:ro
+  depends_on:
+    db:
+      condition: service_healthy
+
 services:
-  web:
-    build: .
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fuel_route}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    # Reachable from this machine only (for running Django outside Docker).
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-off: migrations, cache table, fuel price import and offline geocoding (scripts/setup.sh).
+  setup:
+    <<: *app
+    command: sh scripts/setup.sh
+    restart: "no"
+    healthcheck:
+      disable: true  # a one-off job, not a server
+
+  route:
+    <<: *app
     ports:
       - "8000:8000"
-    env_file:
-      - path: .env
-        required: false
-    environment:
-      DJANGO_DEBUG: ${DJANGO_DEBUG:-False}
-      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1}
-      SQLITE_PATH: /app/data/db.sqlite3
-    volumes:
-      - sqlite_data:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      setup:
+        condition: service_completed_successfully
 
 volumes:
-  sqlite_data:
+  postgres_data:
