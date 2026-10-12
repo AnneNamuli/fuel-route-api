@@ -108,7 +108,12 @@ def cheapest_purchases(
             reachable.append(j)
             j += 1
         if not reachable:
-            raise NoFuelPlanError(f'No fuel station within {range_miles:g} miles after mile {mile:.0f} of the route.')
+            next_mile = nodes[i + 1][0]
+            where = 'the finish' if i + 1 == last else f'the next one at mile {next_mile:.0f}'
+            raise NoFuelPlanError(
+                f'The fuel price list has no station between mile {mile:.0f} of the route and {where}: '
+                f'a {next_mile - mile:.0f}-mile gap, longer than the {range_miles:g}-mile range.'
+            )
 
         cheaper = next((k for k in reachable if nodes[k][1] < price), None)
         if cheaper is not None:

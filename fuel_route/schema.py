@@ -6,10 +6,16 @@ Views only apply the decorators defined here, so the API docs live in one place.
 from typing import Any
 
 from django.db import DatabaseError
-from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema, extend_schema_view
 
 from .models import SavedTrip
-from .serializers import LOCATION_HELP, HealthSerializer, TripSerializer
+from .serializers import (
+    LOCATION_HELP,
+    ErrorSerializer,
+    HealthSerializer,
+    TripSerializer,
+    ValidationErrorSerializer,
+)
 from .services.trip_planner import COORDINATES
 
 MAX_SAVED_TRIPS = 100  # keep the suggestion lists a usable size
@@ -111,6 +117,21 @@ MAJOR_CITIES = sorted(
 
 # Endpoint documentation, applied as class decorators in views.py.
 
+TRIP_ERRORS = {
+    400: OpenApiResponse(
+        ValidationErrorSerializer,
+        description='Invalid input, a place outside the US or not found, or no road between the places. '
+        '`errors` is only present for invalid input.',
+    ),
+    422: OpenApiResponse(
+        ErrorSerializer,
+        description="Part of the route has no station in the fuel price list within the vehicle's range.",
+    ),
+    429: OpenApiResponse(ErrorSerializer, description='Too many trips planned from this client; try again later.'),
+    502: OpenApiResponse(ErrorSerializer, description='The routing service failed or returned something unexpected.'),
+    503: OpenApiResponse(ErrorSerializer, description='The routing service is unavailable, or its quota is used up.'),
+}
+
 trip_docs = extend_schema_view(
     get=extend_schema(
         summary='Plan a trip with the cheapest fuel stops',
@@ -122,7 +143,7 @@ trip_docs = extend_schema_view(
             OpenApiParameter('start', str, required=True, description=LOCATION_HELP),
             OpenApiParameter('finish', str, required=True, description=LOCATION_HELP),
         ],
-        responses={200: TripSerializer},
+        responses={200: TripSerializer, **TRIP_ERRORS},
     ),
 )
 

@@ -33,7 +33,9 @@ class CheapestPurchasesTests(SimpleTestCase):
 
     def test_gap_longer_than_range_is_an_error(self):
         """A stretch longer than the range with no station can't be planned."""
-        with self.assertRaises(NoFuelPlanError):
+        with self.assertRaisesMessage(
+            NoFuelPlanError, 'no station between mile 100 of the route and the finish: a 600-mile gap'
+        ):
             self.plan([('A', 100, 3.0)], total=700)
 
 

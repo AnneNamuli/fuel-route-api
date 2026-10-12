@@ -76,6 +76,20 @@
           `$${feature.properties.price_per_gallon}/gal · ${feature.properties.gallons} gal · $${feature.properties.cost}`
         ),
       }).addTo(map);
+      // The route line runs from the start to the finish, so mark its two ends.
+      const route = data.map.features.find((f) => f.geometry.type === 'LineString');
+      if (route) {
+        const coords = route.geometry.coordinates;
+        const ends = [
+          [coords[0], 'Start', start.value, '#16a34a'],
+          [coords[coords.length - 1], 'Finish', finish.value, '#dc2626'],
+        ];
+        for (const [[lng, lat], label, place, color] of ends) {
+          L.circleMarker([lat, lng], {radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1})
+            .bindTooltip(`<b>${label}:</b> ${esc(place)}`, {permanent: true, direction: 'top', offset: [0, -8]})
+            .addTo(layer);
+        }
+      }
       map.fitBounds(layer.getBounds(), {padding: [20, 20]});
 
       result.innerHTML = `

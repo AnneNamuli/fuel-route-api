@@ -119,6 +119,7 @@ class RouteApiTests(TestCase):
         FuelStation.objects.all().delete()
         response = self.plan()
         self.assertEqual(response.status_code, 422)
+        self.assertIn('530-mile gap, longer than the 500-mile range', response.json()['detail'])
 
     def test_missing_input(self):
         """Missing fields are reported per field."""

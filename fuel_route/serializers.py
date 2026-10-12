@@ -105,6 +105,18 @@ def map_url(request: HttpRequest, start: str, finish: str) -> str:
     return request.build_absolute_uri(f'{reverse("trip-map")}?{urlencode({"start": start, "finish": finish})}')
 
 
+class ErrorSerializer(serializers.Serializer):
+    """An error: what went wrong."""
+
+    detail = serializers.CharField()
+
+
+class ValidationErrorSerializer(ErrorSerializer):
+    """Invalid input: `detail` plus the problems with each field."""
+
+    errors = serializers.DictField(child=serializers.ListField(child=serializers.CharField()))
+
+
 class HealthSerializer(serializers.Serializer):
     """Health check result."""
 
